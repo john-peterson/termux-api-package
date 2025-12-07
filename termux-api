@@ -20,7 +20,7 @@ use constant PREFIX => '/data/data/com.termux/files/usr';
 use constant LISTEN_SOCKET_ADDRESS => 'com.termux.api://listen';
 
 $SIG{PIPE} = 'IGNORE';	 # ignore SIGPIPE like in the C code
-$SIG{CHLD} = 'IGNORE';	 # do not create zombies
+# $SIG{CHLD} = 'IGNORE';	 # do not create zombies
 
 # Utility: generate a pseudo-UUID (not RFC4122 strict, but similar format)
 sub generate_uuid {
@@ -48,7 +48,7 @@ sub exec_am_broadcast {
 	close STDIN;
 
 	my @child_argv = (
-		'am', 'broadcast',
+		'broadcast',
 		'--user', '0',
 		'-n', 'com.termux.api/.TermuxApiReceiver',
 		'--es', 'socket_input', $output_address_string,
@@ -98,6 +98,9 @@ sub contact_plugin {
 		# fallback
 		exec_am_broadcast($argc, $argv_ref, $input_address_string, $output_address_string);
 	};
+
+	# connect  will hang if frozen 
+	thaw();
 
 	my $addr = "\0" . LISTEN_SOCKET_ADDRESS; # abstract namespace address
 	my $packed = pack_sockaddr_un($addr);
@@ -286,6 +289,24 @@ sub transmit_socket_to_stdout {
 		}
 	}
 	return $fd;
+}
+
+# thaw plugin
+sub thaw() {
+	my $pid = fork();
+	if ($pid != 0) {return;}
+	# my $board = `getprop ro.hardware.sensors`;
+	# $board =~ s/\n//g;
+	# my $api = `getprop ro.build.version.sdk`;
+	# $api =~ s/\n//g;
+	# if ($api >= 34 || $api >= 33 && $board eq "unisoc") {
+	system "/system/bin/dumpsys activity -p com.termux.api p com.termux.api |grep -q isFrozen=true";
+	# real  0m0.020s
+	if ($? == 0) {
+		system '/system/bin/am freeze $(pidof com.termux.api) unf';
+		# real  0m0.066s
+	}
+	exit;
 }
 
 # Main logic: run_api_command
