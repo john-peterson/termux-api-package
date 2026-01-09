@@ -1,4 +1,5 @@
 #!/bin/env perl
+#!/bin/env -S perl -d
 use strict;
 use warnings;
 use Socket;
@@ -334,6 +335,7 @@ sub run_api_command {
 	my $trans_pid = fork();
 	if (!defined $trans_pid) { warn "fork for transmitter failed: $!"; }
 	if (defined $trans_pid && $trans_pid == 0) {
+		# alarm 60;
 		# Child: accept on output_server and forward STDIN
 		# Duplicate the raw fd into a fileno-style integer for helper
 		my $out_fd = fileno($output_server);
@@ -345,6 +347,10 @@ sub run_api_command {
 	my $fd = transmit_socket_to_stdout($input_peer);
 
 	close $input_peer;
+	waitpid($pid, 0);
+	# every thing else is done so stdin should close also 
+	kill 6, $trans_pid;
+	# print "reaped $trans_pid\n";
 	return $fd;
 }
 
